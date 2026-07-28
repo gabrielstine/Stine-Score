@@ -414,12 +414,12 @@ def _waveform_features(
     }
 
 
-def extract_probe_features(
-    root: Path,
-    session: str,
-    stream: str,
-    region: str,
+def extract_phy_features(
+    phy_dir: Path,
     *,
+    session: str = "unknown",
+    stream: str = "unknown",
+    region: str = "unknown",
     bin_seconds: float = 60.0,
     min_gaussian_spikes: int = 20,
     waveform_samples: int = 61,
@@ -429,7 +429,9 @@ def extract_probe_features(
     max_clusters: int | None = None,
     all_clusters: bool = False,
 ) -> pd.DataFrame:
-    phy_dir = _find_phy_dir(root, session, stream)
+    phy_dir = phy_dir.resolve()
+    if not phy_dir.is_dir():
+        raise FileNotFoundError(f"Phy output folder not found: {phy_dir}")
     cluster_info = _load_cluster_info(phy_dir)
     group_path = phy_dir / "cluster_group.tsv"
     saved_groups = (
@@ -586,6 +588,23 @@ def extract_probe_features(
         records.append(record)
 
     return pd.DataFrame.from_records(records)
+
+
+def extract_probe_features(
+    root: Path,
+    session: str,
+    stream: str,
+    region: str,
+    **kwargs: object,
+) -> pd.DataFrame:
+    """Manifest-oriented wrapper around direct Phy-folder extraction."""
+    return extract_phy_features(
+        _find_phy_dir(root, session, stream),
+        session=session,
+        stream=stream,
+        region=region,
+        **kwargs,
+    )
 
 
 def manifest_rows(

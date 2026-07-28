@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import os
 from pathlib import Path
 
 import joblib
@@ -12,34 +11,7 @@ import pandas as pd
 from quality_model.features import extract_probe_features, manifest_rows
 from quality_model.features import _find_phy_dir as find_phy_dir
 from quality_model.features import _load_cluster_info as load_cluster_info
-
-
-def score_frame(artifact: dict[str, object], frame: pd.DataFrame) -> np.ndarray:
-    columns = list(artifact["feature_columns"])
-    missing = set(columns) - set(frame.columns)
-    if missing:
-        raise ValueError(f"Extracted features are missing model inputs: {sorted(missing)}")
-    x = frame[columns].replace([np.inf, -np.inf], np.nan)
-    raw = artifact["model"].predict_proba(x)[:, 1]
-    probability = artifact["calibrator"].predict(raw)
-    if not np.all(np.isfinite(probability)):
-        raise ValueError("Model produced non-finite probabilities")
-    if np.any((probability < 0.0) | (probability > 1.0)):
-        raise ValueError("Model produced probabilities outside [0, 1]")
-    return probability
-
-
-def write_phy_probability(
-    path: Path, values: pd.DataFrame, *, overwrite: bool
-) -> str:
-    if path.exists() and not overwrite:
-        raise FileExistsError(
-            f"Refusing to replace existing {path}; rerun with --overwrite if intended"
-        )
-    temporary = path.with_name(path.name + ".tmp")
-    values.to_csv(temporary, sep="\t", index=False, float_format="%.8f")
-    os.replace(temporary, path)
-    return str(path)
+from quality_model.scoring import score_frame, write_phy_probability
 
 
 def main() -> int:

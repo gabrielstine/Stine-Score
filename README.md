@@ -49,7 +49,29 @@ python -m venv .venv
 .\.venv\Scripts\python -m pip install -r requirements.txt
 ```
 
-## Score every sorted probe
+## Score one Phy folder
+
+To apply the included model, you only need the path to one Phy output folder;
+no manifest is required. The folder must contain `spike_clusters.npy`,
+`spike_times.npy`, `amplitudes.npy`, `params.py`, and either `cluster_info.tsv`
+or Kilosort's `cluster_Amplitude.tsv`, `cluster_ContamPct.tsv`, and
+`cluster_KSLabel.tsv` summary files.
+
+```powershell
+.\.venv\Scripts\python score_probe.py `
+  "D:\data\session_imec0\phy_KS2_imec0_ap" `
+  models\stine_score_v0.1.joblib
+```
+
+This writes `cluster_good_probability.tsv` into that Phy folder. Existing Phy
+labels and Kilosort arrays are not changed. The command stops if that file
+already exists; add `--overwrite` only when intentional. Reopen Phy to see
+`good_probability` as a cluster column.
+
+If the cluster IDs change after further Phy curation, rerun the command with
+`--overwrite` to regenerate probabilities for the current cluster table.
+
+## Batch-score every sorted probe
 
 Your data root should contain `probe_manifest.csv`. The manifest needs at least
 `session`, `stream`, `region`, and `sorted` columns. Each sorted probe is
@@ -143,4 +165,3 @@ It is a dry run unless `--apply` is supplied.
 ## License
 
 Released under the [MIT License](LICENSE).
-
