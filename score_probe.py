@@ -7,7 +7,7 @@ from pathlib import Path
 import joblib
 
 from quality_model.features import extract_phy_features
-from quality_model.scoring import score_frame, write_phy_probability
+from quality_model.scoring import raw_score_frame, score_frame, write_phy_probability
 
 
 def main() -> int:
@@ -21,33 +21,35 @@ def main() -> int:
     )
     parser.add_argument("model", type=Path, help="Path to a Stine-Score .joblib model")
     parser.add_argument(
-        "--column-name", default="good_probability", help="Phy metadata column name"
-    )
-    parser.add_argument(
-        "--output",
-        type=Path,
-        help="Output TSV path; defaults to cluster_<column-name>.tsv in the Phy folder",
-    )
-    parser.add_argument(
         "--overwrite", action="store_true", help="Replace an existing output TSV."
     )
     args = parser.parse_args()
 
-    if not args.column_name.replace("_", "").isalnum():
-        raise ValueError("Column name may contain only letters, numbers, and underscores")
-
     phy_dir = args.phy_dir.resolve()
-    output = args.output or phy_dir / f"cluster_{args.column_name}.tsv"
     artifact = joblib.load(args.model)
     frame = extract_phy_features(phy_dir, include_waveforms=False, all_clusters=True)
     probability = score_frame(artifact, frame)
+    raw_score = raw_score_frame(artifact, frame)
     values = frame[["cluster_id"]].copy()
-    values[args.column_name] = probability
+    values["good_probability"] = probability
+    values["good_unit_score"] = raw_score
     if values["cluster_id"].duplicated().any():
         raise ValueError("Duplicate cluster IDs found")
-    write_phy_probability(output, values.sort_values("cluster_id"), overwrite=args.overwrite)
+    calibrated_path = phy_dir / "cluster_good_probability.tsv"
+    raw_score_path = phy_dir / "cluster_good_unit_score.tsv"
+    write_phy_probability(
+        calibrated_path,
+        values[["cluster_id", "good_probability"]].sort_values("cluster_id"),
+        overwrite=args.overwrite,
+    )
+    write_phy_probability(
+        raw_score_path,
+        values[["cluster_id", "good_unit_score"]].sort_values("cluster_id"),
+        overwrite=args.overwrite,
+    )
     print(f"Scored {len(values)} clusters.")
-    print(f"Wrote {output.resolve()}")
+    print(f"Wrote {calibrated_path.resolve()}")
+    print(f"Wrote {raw_score_path.resolve()}")
     return 0
 
 

@@ -7,14 +7,24 @@ import numpy as np
 import pandas as pd
 
 
-def score_frame(artifact: dict[str, object], frame: pd.DataFrame) -> np.ndarray:
-    """Return calibrated good-label probabilities for an extracted feature table."""
+def raw_score_frame(artifact: dict[str, object], frame: pd.DataFrame) -> np.ndarray:
+    """Return the boosted tree's native, uncalibrated good-unit score."""
     columns = list(artifact["feature_columns"])
     missing = set(columns) - set(frame.columns)
     if missing:
         raise ValueError(f"Extracted features are missing model inputs: {sorted(missing)}")
     x = frame[columns].replace([np.inf, -np.inf], np.nan)
     raw = artifact["model"].predict_proba(x)[:, 1]
+    if not np.all(np.isfinite(raw)):
+        raise ValueError("Model produced non-finite raw scores")
+    if np.any((raw < 0.0) | (raw > 1.0)):
+        raise ValueError("Model produced raw scores outside [0, 1]")
+    return raw
+
+
+def score_frame(artifact: dict[str, object], frame: pd.DataFrame) -> np.ndarray:
+    """Return calibrated good-label probabilities for an extracted feature table."""
+    raw = raw_score_frame(artifact, frame)
     probability = artifact["calibrator"].predict(raw)
     if not np.all(np.isfinite(probability)):
         raise ValueError("Model produced non-finite probabilities")

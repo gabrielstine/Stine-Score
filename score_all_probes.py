@@ -15,7 +15,7 @@ from quality_model.features import (
     phy_folder_metadata,
 )
 from quality_model.features import _load_cluster_info as load_cluster_info
-from quality_model.scoring import score_frame, write_phy_probability
+from quality_model.scoring import raw_score_frame, score_frame, write_phy_probability
 
 
 def main() -> int:
@@ -28,12 +28,9 @@ def main() -> int:
         "--cache-dir", type=Path, default=Path("artifacts/discovered_probe_scores")
     )
     parser.add_argument(
-        "--column-name", default="good_probability", help="Phy metadata column name"
-    )
-    parser.add_argument(
         "--apply",
         action="store_true",
-        help="Write cluster_<column-name>.tsv into each Phy folder.",
+        help="Write calibrated and uncalibrated score TSVs into each Phy folder.",
     )
     parser.add_argument(
         "--overwrite",
@@ -41,6 +38,12 @@ def main() -> int:
         help="Replace an existing probability TSV. Only used with --apply.",
     )
     parser.add_argument("--max-probes", type=int)
+    parser.add_argument(
+        "--start-probe",
+        type=int,
+        default=0,
+        help="Zero-based index of the first discovered Phy folder to score.",
+    )
     parser.add_argument("--max-clusters", type=int)
     parser.add_argument("--only-phy-dir", action="append", metavar="PATH")
     parser.add_argument(
@@ -50,18 +53,23 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    if not args.column_name.replace("_", "").isalnum():
-        raise ValueError("Column name may contain only letters, numbers, and underscores")
-
     root = args.root.resolve()
     phy_dirs = [Path(path).resolve() for path in args.only_phy_dir] if args.only_phy_dir else iter_phy_dirs(root)
+    if args.start_probe < 0:
+        raise ValueError("--start-probe must be zero or greater")
+    phy_dirs = phy_dirs[args.start_probe :]
     if args.max_probes is not None:
         phy_dirs = phy_dirs[: args.max_probes]
     if not phy_dirs:
         raise ValueError(f"No valid Phy output folders found under {root}")
 
     target_paths = [
-        phy_dir / f"cluster_{args.column_name}.tsv" for phy_dir in phy_dirs
+        output_path
+        for phy_dir in phy_dirs
+        for output_path in (
+            phy_dir / "cluster_good_probability.tsv",
+            phy_dir / "cluster_good_unit_score.tsv",
+        )
     ]
     existing_targets = [path for path in target_paths if path.exists()]
     if args.apply and existing_targets and not args.overwrite:
@@ -90,7 +98,8 @@ def main() -> int:
                 "region",
                 "cluster_id",
                 "label",
-                args.column_name,
+                "good_probability",
+                "good_unit_score",
             }
             missing_cache = required_cache - set(scored.columns)
             if missing_cache:
@@ -109,16 +118,17 @@ def main() -> int:
                 all_clusters=True,
             )
             probability = score_frame(artifact, frame)
+            raw_score = raw_score_frame(artifact, frame)
             scored = frame[["session", "stream", "region", "cluster_id", "label"]].copy()
-            scored[args.column_name] = probability
+            scored["good_probability"] = probability
+            scored["good_unit_score"] = raw_score
             scored.to_csv(cache_path, index=False)
         if scored["cluster_id"].duplicated().any():
             raise ValueError(f"Duplicate cluster IDs in {session} {stream}")
-        probability_values = scored[args.column_name].to_numpy(dtype=float)
-        if not np.all(np.isfinite(probability_values)) or np.any(
-            (probability_values < 0.0) | (probability_values > 1.0)
-        ):
-            raise ValueError(f"Invalid cached probabilities in {session} {stream}")
+        for column_name in ("good_probability", "good_unit_score"):
+            values = scored[column_name].to_numpy(dtype=float)
+            if not np.all(np.isfinite(values)) or np.any((values < 0.0) | (values > 1.0)):
+                raise ValueError(f"Invalid cached {column_name} values in {session} {stream}")
         expected_info = load_cluster_info(phy_dir)
         expected_ids = set(expected_info["cluster_id"].astype(int).tolist())
         scored_ids = set(scored["cluster_id"].astype(int).tolist())
@@ -127,15 +137,16 @@ def main() -> int:
                 f"Cache/feature cluster IDs do not match the Phy summaries in "
                 f"{phy_dir}: scored={len(scored_ids)}, expected={len(expected_ids)}"
             )
-        phy_values = scored[["cluster_id", args.column_name]].sort_values("cluster_id")
-        prepared.append((phy_dir / f"cluster_{args.column_name}.tsv", phy_values))
+        for column_name in ("good_probability", "good_unit_score"):
+            phy_values = scored[["cluster_id", column_name]].sort_values("cluster_id")
+            prepared.append((phy_dir / f"cluster_{column_name}.tsv", phy_values))
         combined.append(scored)
 
     combined_frame = pd.concat(combined, ignore_index=True)
     combined_path = cache_dir / "all_probe_probabilities.csv"
     combined_frame.to_csv(combined_path, index=False)
     print(
-        f"Prepared {len(combined_frame)} cluster probabilities across {len(phy_dirs)} probes."
+        f"Prepared calibrated probabilities and raw scores for {len(combined_frame)} clusters across {len(phy_dirs)} probes."
     )
     print(f"Local combined output: {combined_path}")
 
@@ -146,7 +157,7 @@ def main() -> int:
     for path, values in prepared:
         write_phy_probability(path, values, overwrite=args.overwrite)
         print(f"Wrote {len(values)} rows: {path}", flush=True)
-    print(f"Added cluster_{args.column_name}.tsv to {len(prepared)} Phy folders.")
+    print(f"Added both score TSVs to {len(phy_dirs)} Phy folders.")
     return 0
 
 
