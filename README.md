@@ -71,15 +71,14 @@ already exists; add `--overwrite` only when intentional. Reopen Phy to see
 If the cluster IDs change after further Phy curation, rerun the command with
 `--overwrite` to regenerate probabilities for the current cluster table.
 
-## Batch-score every sorted probe
+## Batch-score every Phy folder under a base directory
 
-Your data root should contain `probe_manifest.csv`. The manifest needs at least
-`session`, `stream`, `region`, and `sorted` columns. Each sorted probe is
-expected under a layout such as:
+Give the batch command any base directory. It recursively finds directories
+that contain the required Kilosort/Phy files; no naming convention or manifest
+file is required. A typical layout might look like:
 
 ```text
 <data-root>/
-  probe_manifest.csv
   <session>/
     <session>_<stream>/
       phy_*_<stream>_ap/
@@ -98,8 +97,8 @@ cache files.
   models\stine_score_v0.1.joblib
 ```
 
-When the output looks right, add a sortable Phy metadata column to every probe
-marked `sorted=1`:
+When the output looks right, add a sortable Phy metadata column to every found
+Phy folder:
 
 ```powershell
 .\.venv\Scripts\python score_all_probes.py "D:\your-data-root" `
@@ -130,11 +129,17 @@ the model on your own labels.
 
 ## Train your own Stine-Score-style model
 
-For a manifest whose `curated=1` rows point to curated Phy folders:
+Give the training extractor a base directory containing one or more Phy output
+folders. It recursively discovers them and uses only clusters with saved
+`good`, `mua`, or `noise` labels; unlabeled folders are skipped automatically.
+
+For training, point the command at a directory containing **manually curated**
+outputs. Without a manifest, Stine-Score cannot reliably distinguish complete
+manual labels from any pre-existing or partial Kilosort/Phy labels.
 
 ```powershell
 .\.venv\Scripts\python extract_features.py "D:\your-data-root"
-.\.venv\Scripts\python train_model.py artifacts\features.csv
+.\.venv\Scripts\python train_model.py artifacts\discovered_features\features.csv
 ```
 
 Training compares a logistic baseline, nonlinear additive boosting, and an

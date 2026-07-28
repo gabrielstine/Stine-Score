@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import math
+import os
 import re
+from hashlib import sha1
 from pathlib import Path
 from statistics import NormalDist
-from typing import Iterable
 
 import numpy as np
 import pandas as pd
@@ -18,6 +19,8 @@ NORMAL_QUANTILES = np.array(
 )
 DAT_PATH_RE = re.compile(r"^\s*dat_path\s*=\s*[rRuUbBfF]*['\"](.*?)['\"]", re.MULTILINE)
 SCALAR_RE = re.compile(r"^\s*(?P<name>\w+)\s*=\s*(?P<value>[^#\r\n]+)", re.MULTILINE)
+STREAM_RE = re.compile(r"_(imec\d+)(?:_ap)?$", re.IGNORECASE)
+PHY_REQUIRED_FILES = ("spike_clusters.npy", "spike_times.npy", "amplitudes.npy", "params.py")
 
 
 def _finite(values: np.ndarray) -> np.ndarray:
@@ -109,14 +112,53 @@ def _parse_params(params_path: Path) -> dict[str, object]:
     return scalars
 
 
-def _find_phy_dir(root: Path, session: str, stream: str) -> Path:
-    probe_dir = root / session / f"{session}_{stream}"
-    matches = sorted(probe_dir.glob(f"phy_*_{stream}_ap"))
-    if len(matches) != 1:
-        raise FileNotFoundError(
-            f"Expected one Phy folder under {probe_dir}, found {len(matches)}"
+def is_phy_output_dir(path: Path) -> bool:
+    """Whether a directory contains the minimum files needed for Stine-Score."""
+    return path.is_dir() and all((path / name).is_file() for name in PHY_REQUIRED_FILES)
+
+
+def iter_phy_dirs(root: Path) -> list[Path]:
+    """Recursively discover valid Phy output folders under a base directory."""
+    root = root.resolve()
+    if not root.is_dir():
+        raise FileNotFoundError(f"Base directory not found: {root}")
+    candidates = [root] if is_phy_output_dir(root) else []
+    # Most acquisition trees are <base>/<session>/<probe>/phy_*. This shallow
+    # search avoids walking huge raw-data and motion-correction directories.
+    for pattern in ("phy_*", "*/phy_*", "*/*/phy_*"):
+        candidates.extend(
+            path for path in root.glob(pattern) if is_phy_output_dir(path)
         )
-    return matches[0]
+    if candidates:
+        return sorted(set(candidates), key=lambda path: str(path).lower())
+
+    # Fall back to a generic recursive scan for an unfamiliar directory layout.
+    for current, directories, filenames in os.walk(root):
+        if all(name in filenames for name in PHY_REQUIRED_FILES):
+            candidates.append(Path(current))
+            directories.clear()
+    return sorted(set(candidates), key=lambda path: str(path).lower())
+
+
+def phy_folder_metadata(phy_dir: Path) -> tuple[str, str, str]:
+    """Infer lightweight provenance without assuming a lab-specific directory layout."""
+    phy_dir = phy_dir.resolve()
+    probe_dir = phy_dir.parent.name
+    stream_match = STREAM_RE.search(probe_dir) or STREAM_RE.search(phy_dir.name)
+    stream = stream_match.group(1) if stream_match else "unknown"
+    session = phy_dir.parent.parent.name or probe_dir
+    return session, stream, "unknown"
+
+
+def phy_cache_stem(root: Path, phy_dir: Path) -> str:
+    """Stable, collision-resistant cache filename for a discovered Phy folder."""
+    try:
+        relative = phy_dir.resolve().relative_to(root.resolve())
+    except ValueError:
+        relative = phy_dir.resolve()
+    readable = re.sub(r"[^A-Za-z0-9._-]+", "_", "__".join(relative.parts[-3:]))
+    digest = sha1(str(relative).encode("utf-8")).hexdigest()[:10]
+    return f"{readable}__{digest}"
 
 
 def _load_cluster_info(phy_dir: Path) -> pd.DataFrame:
@@ -588,36 +630,3 @@ def extract_phy_features(
         records.append(record)
 
     return pd.DataFrame.from_records(records)
-
-
-def extract_probe_features(
-    root: Path,
-    session: str,
-    stream: str,
-    region: str,
-    **kwargs: object,
-) -> pd.DataFrame:
-    """Manifest-oriented wrapper around direct Phy-folder extraction."""
-    return extract_phy_features(
-        _find_phy_dir(root, session, stream),
-        session=session,
-        stream=stream,
-        region=region,
-        **kwargs,
-    )
-
-
-def manifest_rows(
-    manifest_path: Path, selection_column: str = "curated"
-) -> Iterable[tuple[str, str, str]]:
-    manifest = pd.read_csv(manifest_path, dtype=str)
-    required = {"session", "stream", "region", selection_column}
-    missing = required - set(manifest.columns)
-    if missing:
-        raise ValueError(f"Manifest is missing columns: {sorted(missing)}")
-    for row in manifest[manifest[selection_column].eq("1")].itertuples(index=False):
-        yield str(row.session), str(row.stream), str(row.region)
-
-
-def curated_manifest_rows(manifest_path: Path) -> Iterable[tuple[str, str, str]]:
-    yield from manifest_rows(manifest_path, "curated")
