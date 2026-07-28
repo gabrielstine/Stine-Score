@@ -1,11 +1,11 @@
 # Stine-Score
 
 **Stine-Score** predicts the probability that a Kilosort/Phy cluster would be
-called `good` by Gabe Stine. It is a practical curation-assistance tool for
+called `good` by me, Gabe Stine. It is a practical curation-assistance tool for
 Neuropixels recordings: use the probability to prioritize manual review, not
 as a substitute for scientific quality control.
 
-The included pretrained model was trained on Gabe's manual Phy curation labels.
+The included pretrained model was trained on my manual Phy curation labels.
 It learns nonlinear interactions among amplitude, firing-rate, refractory, and
 stability measurements, then returns a calibrated `good_probability` for each
 cluster.
@@ -35,7 +35,7 @@ probes across 10 sessions:
 
 Nested held-out-session validation produced a Brier score of 0.0765, ROC AUC
 of 0.9633, and average precision of 0.9591. These numbers estimate agreement
-with Gabe's historical decisions, not a universal biological ground truth. See
+with my historical curation decisions, not a universal biological ground truth. See
 [`models/README.md`](models/README.md) for limitations and version details.
 
 ## Installation
@@ -51,8 +51,7 @@ python -m venv .venv
 
 ## Score one Phy folder
 
-To apply the included model, you only need the path to one Phy output folder;
-no manifest is required. The folder must contain `spike_clusters.npy`,
+To apply the included model, you only need the path to one Phy output folder. The folder must contain `spike_clusters.npy`,
 `spike_times.npy`, `amplitudes.npy`, `params.py`, and either `cluster_info.tsv`
 or Kilosort's `cluster_Amplitude.tsv`, `cluster_ContamPct.tsv`, and
 `cluster_KSLabel.tsv` summary files.
@@ -115,7 +114,7 @@ If a probability file already exists, the script stops before writing. Use
 
 ## Interpreting the probability
 
-The value is the model's estimate of Gabe's `good` label, conditional on this
+The value is the model's estimate of my `good` label, conditional on this
 training set and preprocessing pipeline. A sensible initial use is triage:
 
 - high probability: prioritize as likely good;
