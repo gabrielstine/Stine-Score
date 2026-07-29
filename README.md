@@ -14,7 +14,7 @@ I have found this metric to be useful for my spike sorting, so I am sharing it.
 Note, however, that this tool was inspired by and is similar to UnitRefine (Jain et al., 2025; https://www.biorxiv.org/content/10.1101/2025.03.30.645770v2), 
 which is much more developed. So, you should probably use that. The main benefit 
 of Stine-Score is that (1) it is simple and fast to run and (2) it automatically 
-integrates with Phy.
+integrates with Phy. I have not compared Stine-Score to UnitRefine.
 
 ## What it measures
 
