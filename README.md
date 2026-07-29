@@ -62,16 +62,10 @@ or Kilosort's `cluster_Amplitude.tsv`, `cluster_ContamPct.tsv`, and
   models\stine_score_v0.1.joblib
 ```
 
-This writes two independent Phy metadata files into that folder:
-
-- `cluster_good_probability.tsv`: the calibrated probability-like output;
-- `cluster_good_unit_score.tsv`: the boosted tree's native, uncalibrated score.
-
-Both are derived from the same features and preserve the model's ranking. The
-first is useful for triage; the second is useful as a direct, criterion-oriented
-score. Existing Phy labels and Kilosort arrays are not changed. The command
-stops if either file already exists; add `--overwrite` only when intentional.
-Reopen Phy to see both as cluster columns.
+This writes `cluster_good_probability.tsv` into that Phy folder. Existing Phy
+labels and Kilosort arrays are not changed. The command stops if that file
+already exists; add `--overwrite` only when intentional. Reopen Phy to see
+`good_probability` as a cluster column.
 
 If the cluster IDs change after further Phy curation, rerun the command with
 `--overwrite` to regenerate probabilities for the current cluster table.
@@ -110,27 +104,22 @@ Phy folder:
   models\stine_score_v0.1.joblib --apply
 ```
 
-This creates both `cluster_good_probability.tsv` and
-`cluster_good_unit_score.tsv` inside each Phy folder. Existing Kilosort arrays
-and Phy labels are not changed. Reopen Phy to see both as cluster columns.
+This creates `cluster_good_probability.tsv` inside each Phy folder, with
+columns `cluster_id` and `good_probability`. Existing Kilosort arrays and Phy
+labels are not changed. Reopen Phy to see `good_probability` as a cluster
+column.
 
 If a probability file already exists, the script stops before writing. Use
 `--overwrite` only when you intentionally want to replace it.
 
-## Interpreting the two outputs
+## Interpreting the probability
 
-`good_probability` is the calibrated estimate of my `good` label,
-conditional on this training set and preprocessing pipeline. A sensible use is
-triage:
+The value is the model's estimate of my `good` label, conditional on this
+training set and preprocessing pipeline. A sensible initial use is triage:
 
 - high probability: prioritize as likely good;
 - low probability: deprioritize or inspect quickly;
 - intermediate probability: review carefully.
-
-`good_unit_score` is the model's direct, uncalibrated output. It is best read
-as how strongly the available metrics place a unit on the `good` side of the
-learned decision boundary, rather than as a chance that Gabe would label it
-good. It is useful when choosing and validating a fixed automatic cutoff.
 
 The pretrained model's held-out-session performance should not be assumed to
 transfer unchanged to a different lab, recording setup, Kilosort version,
