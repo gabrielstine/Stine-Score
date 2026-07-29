@@ -61,11 +61,11 @@ or Kilosort's `cluster_Amplitude.tsv`, `cluster_ContamPct.tsv`, and
 
 ```powershell
 .\.venv\Scripts\python score_probe.py `
-  "D:\data\session_imec0\phy_KS2_imec0_ap" `
+  "Kilosort output directory" `
   models\stine_score_v0.1.joblib
 ```
 
-This writes `cluster_good_probability.tsv` into that Phy folder. Existing Phy
+This writes `cluster_good_probability.tsv` into that output folder. Existing Phy
 labels and Kilosort arrays are not changed. The command stops if that file
 already exists; add `--overwrite` only when intentional. Reopen Phy to see
 `good_probability` as a cluster column.
