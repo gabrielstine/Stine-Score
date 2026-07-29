@@ -7,8 +7,15 @@ as a substitute for scientific quality control.
 
 The included pretrained model was trained on my manual Phy curation labels.
 It learns nonlinear interactions among amplitude, firing-rate, refractory, and
-stability measurements, then returns a calibrated `good_probability` for each
+stability measurements, then returns a `good_probability` for each
 cluster.
+
+I have found this metric to be useful for my spike sorting, so I am sharing it. 
+Note, however, that this tool was inspired by and is similar to UnitRefine 
+(Jain et al., 2025; https://www.biorxiv.org/content/10.1101/2025.03.30.645770v2), 
+which is much more developed. So, you should probably use that. The main benefit 
+of Stine-Score is that (1) it is simple and fast to run and (2) it automatically 
+integrates with Phy.
 
 ## What it measures
 
@@ -27,11 +34,7 @@ and was not needed for the first model.
 
 [`models/stine_score_v0.1.joblib`](models/stine_score_v0.1.joblib) is included
 for immediate scoring. It was trained on 3,556 manually labeled units from 31
-probes across 10 sessions:
-
-- `good` labels were positive;
-- `mua` and `noise` labels were negative;
-- `unsorted` labels were excluded from training.
+probes.
 
 Nested held-out-session validation produced a Brier score of 0.0765, ROC AUC
 of 0.9633, and average precision of 0.9591. These numbers estimate agreement
